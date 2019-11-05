@@ -3,6 +3,7 @@
 use rster::{PathBuilder, Point, Rster};
 use std::fs::File;
 use std::io::Write;
+use std::time;
 
 
 fn write_pgm(path: &str, width: usize, height: usize, data: &[u8]) {
@@ -31,21 +32,28 @@ fn main() {
         .line_to(Point::new(200.0, 50.0))
         .line_to(Point::new(250.0, 100.0))
         .line_to(Point::new(150.0, 100.0))
-        // Test
-        // .move_to(Point::new(300.0, 500.0))
-        // .line_to(Point::new(309.5, 480.0))
-        // .line_to(Point::new(359.49997, 480.00008))
-        // .line_to(Point::new(350.0, 500.0))
-        // .line_to(Point::new(300.0, 500.0))
         // Curve "C"
         .move_to(Point::new(300.0, 100.0))
         .quad_bez_to(Point::new(400.0, 75.0), Point::new(300.0, 50.0))
         .line_to(Point::new(310.0, 50.0))
         .quad_bez_to(Point::new(410.0, 75.0), Point::new(310.0, 100.0))
         .line_to(Point::new(300.0, 100.0))
+        // Cubic curve "S"
+        .move_to(Point::new(100.0, 500.0))
+        .cub_bez_to(Point::new(200.0, 400.0), Point::new(0.0, 300.0), Point::new(100.0, 200.0))
+        .line_to(Point::new(150.0, 200.0))
+        .cub_bez_to(Point::new(50.0, 300.0), Point::new(250.0, 400.0), Point::new(150.0, 500.0))
+        .line_to(Point::new(100.0, 500.0))
         .finish();
-    rster.draw_path(path_obj.iter());
+    println!("draw: {:?}", do_with_time(|| { rster.draw_path(path_obj.iter()) }));
+    println!("accumulate: {:?}", do_with_time(|| { let _ = rster.accumulate(); }));
     let bitmap = rster.accumulate();
     write_pgm("shapes.pgm", 600, 600, &bitmap);
     write_reverse_pgm("reverse_shapes.pgm", 600, 600, &bitmap);
+}
+
+fn do_with_time<F>(mut f: F) -> time::Duration where F: FnMut() {
+    let start = time::SystemTime::now();
+    f();
+    start.elapsed().unwrap()
 }

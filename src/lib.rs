@@ -109,7 +109,8 @@ impl Rster {
             p0.x >= 0.0 && p0.y >= 0.0 && p0.x <= self.width as f32 && p0.y <= self.height as f32
         );
         assert!(
-            p1.x >= 0.0 && p1.y >= 0.0 && p1.x <= self.width as f32 && p1.y <= self.height as f32
+            p1.x >= 0.0 && p1.y >= 0.0 && p1.x <= self.width as f32 && p1.y <= self.height as f32,
+            "p1: {}", p1
         );
         // If we're on the same y coord, there's no need to draw
         if p0.y == p1.y {
@@ -191,6 +192,51 @@ impl Rster {
         self.draw_line(p, p1);
     }
 
+    /// Draw a cubic bezier curve
+    pub fn draw_cub_bez(&mut self, p0: Point, c0: Point, c1: Point, p1: Point) {
+        let cal_pt = |t| {
+            let pp0c0 = Point::linterp(t, p0, c0);
+            let pc0c1 = Point::linterp(t, c0, c1);
+            let pc1p1 = Point::linterp(t, c1, p1);
+            Point::linterp(t, Point::linterp(t, pp0c0, pc0c1), Point::linterp(t, pc0c1, pc1p1))
+        };
+        const ARBITRARY: f32 = 1.0 / 3.0;
+        let p0c1_mid = Point::linterp(0.5, p0, c1);
+        let c0p1_mid = Point::linterp(0.5, c0, p1);
+        let c0dist = sq_dist(p0c1_mid, c0);
+        let c1dist = sq_dist(c0p1_mid, c1);
+        if c0dist < ARBITRARY && c1dist < ARBITRARY {
+            self.draw_line(p0, p1);
+        }
+        let n0 = 1 + ((1.0 / ARBITRARY) * c0dist).sqrt().floor() as usize;
+        let n1 = 1 + ((1.0 / ARBITRARY) * c1dist).sqrt().floor() as usize;
+        //println!("num_segments: {}", n0 + n1);
+        let mid = cal_pt(0.5);
+        let delta0 = 0.5 / (n0 as f32);
+        let delta1 = 0.5 / (n1 as f32);
+        let mut t = 0.0;
+        let mut p = p0;
+        for _ in 0..(n0 - 1) {
+            t += delta0;
+            let pn = cal_pt(t);
+            //println!("draw_line({}, {})", p, pn);
+            self.draw_line(p, pn);
+            p = pn;
+        }
+        //println!("draw_line({}, {})", p, mid);
+        self.draw_line(p, mid);
+        p = mid;
+        for _ in 0..(n1 - 1) {
+            t += delta1;
+            let pn = cal_pt(t);
+            //println!("draw_line({}, {})", p, pn);
+            self.draw_line(p, pn);
+            p = pn;
+        }
+        //println!("draw_line({}, {})", p, p1);
+        self.draw_line(p, p1);
+    }
+
     /// Draw a path
     pub fn draw_path<'a, I>(&mut self, path: I)
     where
@@ -216,7 +262,10 @@ impl Rster {
                     self.draw_quad_bez(last_point, *c, *p);
                     last_point = *p;
                 }
-                _ => (),
+                PathOp::CubBez(c0, c1, p) => {
+                    self.draw_cub_bez(last_point, *c0, *c1, *p);
+                    last_point = *p;
+                }
             }
         }
     }
