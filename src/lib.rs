@@ -2,7 +2,7 @@
 // (C) 2019 Srimanta Barua <srimanta.barua1@gmail.com>
 
 /// A 2-D point
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
@@ -11,6 +11,13 @@ pub struct Point {
 impl Point {
     pub fn new(x: f32, y: f32) -> Point {
         Point { x: x, y: y }
+    }
+
+    pub fn linterp(t: f32, p0: Point, p1: Point) -> Point {
+        Point {
+            x: p0.x * (1.0 - t) + p1.x * t,
+            y: p0.y * (1.0 - t) + p1.y * t,
+        }
     }
 }
 
@@ -129,30 +136,60 @@ impl Rster {
             };
             let (x0floor, x1ceil) = (x0.floor(), x1.ceil());
             let x0i = x0floor as usize;
+            //println!("x0f: {} -> {} | x1c: {} -> {}", x0, x0floor, x1, x1ceil);
             if x1ceil <= x0floor + 1.0 {
                 // If x0 and x1 are within the same pixel, then area to the right is
                 // (1 - (mid(x0, x1) - x0floor)) * dy
                 let area = ((x0 + x1) * 0.5) - x0floor;
                 self.buf[linestart + x0i] += dydir * (1.0 - area);
                 self.buf[linestart + x0i + 1] += dydir * area;
+                //print!("buf[{},{}] = {} | ", y, x0i, self.buf[linestart + x0i]);
+                //println!("buf[{},{}] = {}\n", y, x0i + 1, self.buf[linestart + x0i + 1]);
             } else {
+                //println!("HERE");
                 let dydx = 1.0 / dxdy;
                 let mut x0right = 1.0 - (x0 - x0floor);
                 let x1_floor_i = x1.floor() as usize;
                 let mut area_upto_here = 0.5 * x0right * x0right * dydx;
                 self.buf[linestart + x0i] += direction * area_upto_here;
+                //print!("buf[{},{}] = {} | ", y, x0i, self.buf[linestart + x0i]);
                 for x in (x0i + 1)..x1_floor_i {
                     x0right += 1.0;
                     let total_area_here = 0.5 * x0right * x0right * dydx;
                     self.buf[linestart + x] += direction * (total_area_here - area_upto_here);
+                    //print!("buf[{},{}] = {} | ", y, x, self.buf[linestart + x]);
                     area_upto_here = total_area_here;
                 }
-                x0right = x1 - x0;
-                let total_area = 0.5 * x0right * x0right * dydx;
-                self.buf[linestart + x1_floor_i] += direction * (total_area - area_upto_here);
+                self.buf[linestart + x1_floor_i] += direction * (dy - area_upto_here);
+                //println!("buf[{},{}] = {}", y, x1_floor_i, self.buf[linestart + x1_floor_i]);
             }
             xhere = xnext;
         }
+    }
+
+    /// Draw a quadratic bezier curve
+    pub fn draw_quad_bez(&mut self, p0: Point, p1: Point, p2: Point) {
+        assert!(p0 != p2);
+        const ARBITRARY: f32 = 1.0 / 4.0;
+        let pmid = Point::linterp(0.5, p1, p2);
+        let sqdist = sq_dist(pmid, p1);
+        if sqdist < ARBITRARY {
+            self.draw_line(p0, p2);
+        }
+        let num_sections = 1 + ((1.0 / ARBITRARY) * sqdist).sqrt().floor() as usize;
+        //println!("num_sections = {}", num_sections);
+        let delta = 1.0 / (num_sections as f32);
+        let mut t = 0.0;
+        let mut p = p0;
+        for _ in 0..(num_sections - 1) {
+            t += delta;
+            let pn = Point::linterp(t, Point::linterp(t, p0, p1), Point::linterp(t, p1, p2));
+            //println!("draw_line({}, {})", p, pn);
+            self.draw_line(p, pn);
+            p = pn;
+        }
+        //println!("draw_line({}, {})", p, p2);
+        self.draw_line(p, p2);
     }
 
     /// Draw a path
@@ -176,6 +213,10 @@ impl Rster {
                     self.draw_line(last_point, *p);
                     last_point = *p;
                 }
+                PathOp::QuadBez(c, p) => {
+                    self.draw_quad_bez(last_point, *c, *p);
+                    last_point = *p;
+                }
                 _ => (),
             }
         }
@@ -184,6 +225,15 @@ impl Rster {
     /// Accumulate buffer data and generate bitmap
     pub fn accumulate(&self) -> Box<[u8]> {
         let mut acc = 0.0;
+        /*
+        for i in 0..self.height {
+            for j in 0..self.width {
+                print!("{:.2} ", self.buf[i * self.width + j]);
+            }
+            println!("");
+        }
+        println!("");
+        */
         self.buf[..(self.width * self.height)]
             .iter()
             .map(|f| {
@@ -195,4 +245,11 @@ impl Rster {
             .collect::<Vec<u8>>()
             .into_boxed_slice()
     }
+}
+
+/// Get squared distance of two points
+fn sq_dist(p0: Point, p1: Point) -> f32 {
+    let ydiff = p1.y - p0.y;
+    let xdiff = p1.x - p0.x;
+    xdiff * xdiff + ydiff * ydiff
 }
