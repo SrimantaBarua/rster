@@ -168,13 +168,12 @@ impl Rster {
     }
 
     /// Draw a quadratic bezier curve
-    pub fn draw_quad_bez(&mut self, p0: Point, p1: Point, p2: Point) {
-        assert!(p0 != p2);
-        const ARBITRARY: f32 = 1.0 / 4.0;
-        let pmid = Point::linterp(0.5, p1, p2);
-        let sqdist = sq_dist(pmid, p1);
+    pub fn draw_quad_bez(&mut self, p0: Point, c0: Point, p1: Point) {
+        const ARBITRARY: f32 = 1.0 / 3.0;
+        let pmid = Point::linterp(0.5, p0, p1);
+        let sqdist = sq_dist(pmid, c0);
         if sqdist < ARBITRARY {
-            self.draw_line(p0, p2);
+            self.draw_line(p0, p1);
         }
         let num_sections = 1 + ((1.0 / ARBITRARY) * sqdist).sqrt().floor() as usize;
         //println!("num_sections = {}", num_sections);
@@ -183,13 +182,13 @@ impl Rster {
         let mut p = p0;
         for _ in 0..(num_sections - 1) {
             t += delta;
-            let pn = Point::linterp(t, Point::linterp(t, p0, p1), Point::linterp(t, p1, p2));
+            let pn = Point::linterp(t, Point::linterp(t, p0, c0), Point::linterp(t, c0, p1));
             //println!("draw_line({}, {})", p, pn);
             self.draw_line(p, pn);
             p = pn;
         }
-        //println!("draw_line({}, {})", p, p2);
-        self.draw_line(p, p2);
+        //println!("draw_line({}, {})", p, p1);
+        self.draw_line(p, p1);
     }
 
     /// Draw a path
