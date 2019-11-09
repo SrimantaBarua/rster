@@ -81,8 +81,23 @@ pub struct PathObj {
 }
 
 impl PathObj {
-    pub fn iter(&self) -> std::slice::Iter<PathOp> {
-        self.ops.iter()
+    pub fn iter(&self) -> PathSegments {
+        PathSegments {
+            iter: self.ops.iter(),
+        }
+    }
+}
+
+/// Iterator over path segments in PathObj
+pub struct PathSegments<'a> {
+    iter: std::slice::Iter<'a, PathOp>,
+}
+
+impl<'a> Iterator for PathSegments<'a> {
+    type Item = PathOp;
+
+    fn next(&mut self) -> Option<PathOp> {
+        self.iter.next().map(|p| p.clone())
     }
 }
 
@@ -110,7 +125,8 @@ impl Rster {
         );
         assert!(
             p1.x >= 0.0 && p1.y >= 0.0 && p1.x <= self.width as f32 && p1.y <= self.height as f32,
-            "p1: {}", p1
+            "p1: {}",
+            p1
         );
         // If we're on the same y coord, there's no need to draw
         if p0.y == p1.y {
@@ -144,8 +160,8 @@ impl Rster {
                 let area = ((x0 + x1) * 0.5) - x0floor;
                 self.buf[linestart + x0i] += dydir * (1.0 - area);
                 self.buf[linestart + x0i + 1] += dydir * area;
-                //print!("buf[{},{}] = {} | ", y, x0i, self.buf[linestart + x0i]);
-                //println!("buf[{},{}] = {}\n", y, x0i + 1, self.buf[linestart + x0i + 1]);
+            //print!("buf[{},{}] = {} | ", y, x0i, self.buf[linestart + x0i]);
+            //println!("buf[{},{}] = {}\n", y, x0i + 1, self.buf[linestart + x0i + 1]);
             } else {
                 //println!("HERE");
                 let dydx = 1.0 / dxdy;
@@ -198,7 +214,11 @@ impl Rster {
             let pp0c0 = Point::linterp(t, p0, c0);
             let pc0c1 = Point::linterp(t, c0, c1);
             let pc1p1 = Point::linterp(t, c1, p1);
-            Point::linterp(t, Point::linterp(t, pp0c0, pc0c1), Point::linterp(t, pc0c1, pc1p1))
+            Point::linterp(
+                t,
+                Point::linterp(t, pp0c0, pc0c1),
+                Point::linterp(t, pc0c1, pc1p1),
+            )
         };
         const ARBITRARY: f32 = 1.0 / 3.0;
         let p0c1_mid = Point::linterp(0.5, p0, c1);
@@ -240,7 +260,7 @@ impl Rster {
     /// Draw a path
     pub fn draw_path<'a, I>(&mut self, path: I)
     where
-        I: Iterator<Item = &'a PathOp>,
+        I: Iterator<Item = PathOp>,
     {
         let mut path = path.peekable();
         let mut last_point = if let Some(op) = path.peek() {
@@ -253,18 +273,18 @@ impl Rster {
         };
         for op in path {
             match op {
-                PathOp::Move(p) => last_point = *p,
+                PathOp::Move(p) => last_point = p,
                 PathOp::Line(p) => {
-                    self.draw_line(last_point, *p);
-                    last_point = *p;
+                    self.draw_line(last_point, p);
+                    last_point = p;
                 }
                 PathOp::QuadBez(c, p) => {
-                    self.draw_quad_bez(last_point, *c, *p);
-                    last_point = *p;
+                    self.draw_quad_bez(last_point, c, p);
+                    last_point = p;
                 }
                 PathOp::CubBez(c0, c1, p) => {
-                    self.draw_cub_bez(last_point, *c0, *c1, *p);
-                    last_point = *p;
+                    self.draw_cub_bez(last_point, c0, c1, p);
+                    last_point = p;
                 }
             }
         }
