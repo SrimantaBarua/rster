@@ -121,7 +121,9 @@ impl Rster {
     /// Draw a line
     pub fn draw_line(&mut self, p0: Point, p1: Point) {
         assert!(
-            p0.x >= 0.0 && p0.y >= 0.0 && p0.x <= self.width as f32 && p0.y <= self.height as f32
+            p0.x >= 0.0 && p0.y >= 0.0 && p0.x <= self.width as f32 && p0.y <= self.height as f32,
+            "p0: {}",
+            p0
         );
         assert!(
             p1.x >= 0.0 && p1.y >= 0.0 && p1.x <= self.width as f32 && p1.y <= self.height as f32,
@@ -182,11 +184,11 @@ impl Rster {
 
     /// Draw a quadratic bezier curve
     pub fn draw_quad_bez(&mut self, p0: Point, c0: Point, p1: Point) {
-        const ARBITRARY: f32 = 1.0 / 3.0;
+        const ARBITRARY: f32 = 1.0 / 10.0;
         let pmid = Point::linterp(0.5, p0, p1);
         let sqdist = sq_dist(pmid, c0);
         if sqdist < ARBITRARY {
-            self.draw_line(p0, p1);
+            return self.draw_line(p0, p1);
         }
         let num_sections = 1 + ((1.0 / ARBITRARY) * sqdist).sqrt().floor() as usize;
         let delta = 1.0 / (num_sections as f32);
@@ -213,13 +215,13 @@ impl Rster {
                 Point::linterp(t, pc0c1, pc1p1),
             )
         };
-        const ARBITRARY: f32 = 1.0 / 3.0;
+        const ARBITRARY: f32 = 1.0 / 10.0;
         let p0c1_mid = Point::linterp(0.5, p0, c1);
         let c0p1_mid = Point::linterp(0.5, c0, p1);
         let c0dist = sq_dist(p0c1_mid, c0);
         let c1dist = sq_dist(c0p1_mid, c1);
         if c0dist < ARBITRARY && c1dist < ARBITRARY {
-            self.draw_line(p0, p1);
+            return self.draw_line(p0, p1);
         }
         let n0 = 1 + ((1.0 / ARBITRARY) * c0dist).sqrt().floor() as usize;
         let n1 = 1 + ((1.0 / ARBITRARY) * c1dist).sqrt().floor() as usize;
